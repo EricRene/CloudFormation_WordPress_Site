@@ -1,0 +1,761 @@
+Description: AWS RD Three-Tier Wordpress
+
+################################################################################
+###############################################################################
+################# --- Cloud Formation WordPress Site --- ################
+#############################################################################
+############################################################################
+
+
+###############################################################################
+################################ PARAMETERS ##################################
+#############################################################################
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: Final Demo
+
+  VPCName:
+    Description: The name of the environment VPC
+    Type: String
+    Default: Final Demo VPC
+
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 192.168.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 192.168.1.0/24
+
+  PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 192.168.2.0/24
+
+  PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 192.168.3.0/24
+
+  PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 192.168.4.0/24
+
+  DatabaseSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 192.168.5.0/24
+
+  DatabaseSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 192.168.6.0/24
+
+#### DB Parameters ####
+
+  DBInstanceID:
+    Default: finaldemodb
+    Description: My database instance
+    Type: String
+    MinLength: '1'
+    MaxLength: '63'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: >-
+      Must begin with a letter and must not end with a hyphen or contain two
+      consecutive hyphens.
+
+  DBName:
+    Default: finaldemodb
+    Description: My database
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters.
+
+  DBInstanceClass:
+    Default: db.t2.micro
+    Description: DB instance class
+    Type: String
+    ConstraintDescription: Must select a valid DB instance type.
+
+  DBAllocatedStorage:
+    Default: '20'
+    Description: The size of the database (GiB)
+    Type: Number
+    MinValue: '20'
+    MaxValue: '65536'
+    ConstraintDescription: must be between 20 and 65536 GiB.
+
+  DBUsername:
+    Default: ericrene
+    NoEcho: 'true'
+    Description: Username for MySQL database access
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+
+  DBPassword:
+    Default: ericrene
+    NoEcho: 'true'
+    Description: Password MySQL database access
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+
+################################################################################
+################################## Outputs ####################################
+##############################################################################
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ]]
+
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ]]
+
+  PublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref PublicSubnet1
+
+  PublicSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PublicSubnet2
+
+  PrivateSubnet1:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivateSubnet1
+
+  PrivateSubnet2:
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivateSubnet2
+
+  NoIngressSecurityGroup:
+    Description: Security group with no ingress rule
+    Value: !Ref NoIngressSecurityGroup
+
+################################################################################
+###############################################################################
+############################# NETWORK RESOURCES ##############################
+#############################################################################
+############################################################################
+
+#### VPC ####
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref VPCName
+
+#### Internet Gateway ####
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Final Demo Internet Gateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+#### Subnets ####
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet 1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Subnet 2
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Web Server Subnet 1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Web Server Subnet 2
+
+  DatabaseSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref DatabaseSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Database Subnet 1
+
+  DatabaseSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref DatabaseSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Database Subnet 2
+
+#### NAT Gateway ####
+
+  NatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway2EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: Final Demo NAT Gateway 1
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway2EIP.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: Final Demo NAT Gateway 2
+
+#### Route Tables ####
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Public Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes (AZ1)
+
+  DefaultPrivateRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref PrivateSubnet1
+
+  DatabaseSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      SubnetId: !Ref DatabaseSubnet1
+
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName} Private Routes (AZ2)
+
+  DefaultPrivateRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref PrivateSubnet2
+
+  DatabaseSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      SubnetId: !Ref DatabaseSubnet2
+
+  NoIngressSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "no-ingress-sg"
+      GroupDescription: "Security group with no ingress rule"
+      VpcId: !Ref VPC
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: DatabaseSubnetGroup
+      DBSubnetGroupName: DatabaseSubnetGroup
+      SubnetIds:
+        - !Ref DatabaseSubnet1
+        - !Ref DatabaseSubnet2
+
+################################################################################
+###############################################################################
+############################# SECURITY GROUPS ################################
+#############################################################################
+############################################################################
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allows http traffic from the internet
+        VpcId:
+           Ref: VPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+        Tags:
+          - Key: Name
+            Value: Load Balancer Security Group
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allows http traffic from the load balancer
+        VpcId:
+           Ref: VPC
+        SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+        Tags:
+          - Key: Name
+            Value: Web Server Security Group
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allows http traffic from the web server
+        VpcId:
+           Ref: VPC
+        SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref WebServerSecurityGroup
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+        SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+        Tags:
+          - Key: Name
+            Value: Database Security Group
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allows inbound EFS traffic from the web server
+        VpcId:
+           Ref: VPC
+        SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref WebServerSecurityGroup
+          IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+        SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+        Tags:
+          - Key: Name
+            Value: EFS Security Group
+
+################################################################################
+###############################################################################
+############################# LOAD BALANCER ##################################
+#############################################################################
+############################################################################
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Name: "Final-Demo-Load-Balancer"
+      Scheme: internet-facing
+      SecurityGroups:
+        - !GetAtt LoadBalancerSecurityGroup.GroupId
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Type: application
+
+  ApplicationLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FinalDemoTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  FinalDemoTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Final Demo Target Group
+
+################################################################################
+###############################################################################
+########################## ELASTIC FILE SYSTEM ###############################
+#############################################################################
+############################################################################
+
+  FinalDemoElasticFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      ThroughputMode: bursting
+      FileSystemTags:
+        - Key: Name
+          Value: Final Demo Elastic File System
+
+#### EFS Mount Target ####
+
+  EFSMountTargetAZ1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FinalDemoElasticFileSystem
+      SecurityGroups:
+        - !GetAtt EFSSecurityGroup.GroupId
+      SubnetId:
+        Ref: "PrivateSubnet1"
+
+  EFSMountTargetAZ2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FinalDemoElasticFileSystem
+      SecurityGroups:
+        - !GetAtt EFSSecurityGroup.GroupId
+      SubnetId:
+        Ref: "PrivateSubnet2"
+
+################################################################################
+###############################################################################
+################################## DATABASE ##################################
+#############################################################################
+############################################################################
+
+  MyDB:
+   Type: 'AWS::RDS::DBInstance'
+   Properties:
+     DBInstanceIdentifier: !Ref DBInstanceID
+     DBName: !Ref DBName
+     DBInstanceClass: !Ref DBInstanceClass
+     AllocatedStorage: !Ref DBAllocatedStorage
+     Engine: MySQL
+     EngineVersion: 5.7.19
+     MasterUsername: !Ref DBUsername
+     MasterUserPassword: !Ref DBPassword
+     VPCSecurityGroups:
+       - !Ref DatabaseSecurityGroup
+     DBSubnetGroupName: !Ref DatabaseSubnetGroup
+     DeletionProtection: false
+     EnableIAMDatabaseAuthentication: true
+
+
+################################################################################
+###############################################################################
+########################## COMPUTING RESOURCES ###############################
+#############################################################################
+############################################################################
+
+#### Launch Template ####
+
+  FinalDemoLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: 'ami-0892d3c7ee96c0bf7'
+        InstanceType: "t2.micro"
+        KeyName: "final-demo-asg-kp-cf"
+        SecurityGroupIds:
+          - !GetAtt WebServerSecurityGroup.GroupId
+        IamInstanceProfile:
+          Arn: !GetAtt SecretsManagerInstanceProfile.Arn
+        UserData:
+          Fn::Base64:
+            Fn::Sub:
+              - |
+                #!/bin/bash -xe
+                sudo apt update
+                sudo apt install -y apache2 \
+                          ghostscript \
+                          libapache2-mod-php \
+                          mysql-server \
+                          php \
+                          php-bcmath \
+                          php-curl \
+                          php-imagick \
+                          php-intl \
+                          php-json \
+                          php-mbstring \
+                          php-mysql \
+                          php-xml \
+                          php-zip \
+                          awscli \
+                          nfs-common
+
+                sudo su
+                sudo mkdir -p /srv/www
+
+                # --- Mounting the EFS ---
+
+                sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${EFSDNS}:/ /srv/www/
+
+                # --- Wordpress Config File ---
+
+                WP_CONFIG_FILE=/srv/www/wordpress/wp-config.php
+
+                if [ ! -f "$WPCONFIGFILE" ]; then
+
+                    echo "$WP_CONFIG_FILE does not exist, proceeding with wp config file creation"
+
+                    sudo chown www-data: /srv/www
+                    sudo curl https://wordpress.org/latest.tar.gz | sudo -u www-data tar zx -C /srv/www
+                    sudo -u www-data cp /srv/www/wordpress/wp-config-sample.php /srv/www/wordpress/wp-config.php
+                    #sudo echo "define( 'WP_HOME', 'siteurl' );" >> /srv/www/wordpress/wp-config.php
+                    #sudo echo "define( 'WP_SITEURL', 'siteurl' );" >> /srv/www/wordpress/wp-config.php
+
+                    DB_NAME=$(aws secretsmanager get-secret-value --region us-west-2 --secret-id database/name --query SecretString --output text | cut -d: -f2 | tr -d \"})
+                    DB_USER=$(aws secretsmanager get-secret-value --region us-west-2 --secret-id database/username --query SecretString --output text | cut -d: -f2 | tr -d \"})
+                    DB_PASSWORD=$(aws secretsmanager get-secret-value --region us-west-2 --secret-id database/password --query SecretString --output text | cut -d: -f2 | tr -d \"})
+                    DB_ENDPOINT=${dbendpoint}
+                    LB_DNS=${lbdns}
+
+
+                # --- Replacing values in wp config file ---
+
+                    sed -i "s/'username_here'/\'$DB_USER\'/g" /srv/www/wordpress/wp-config.php
+                    sed -i "s/'password_here'/\'$DB_PASSWORD\'/g" /srv/www/wordpress/wp-config.php
+                    sed -i "s/'database_name_here'/\'$DB_NAME\'/g" /srv/www/wordpress/wp-config.php
+                    sed -i "s/'localhost'/\'$DB_ENDPOINT\'/g" /srv/www/wordpress/wp-config.php
+                    sed -i "s/'siteurl'/\'$LB_DNS\'/g" /srv/www/wordpress/wp-config.php
+
+                fi
+
+                # --- Configure Apache for WordPress ---
+
+                sudo cat <<EOF > /etc/apache2/sites-available/wordpress.conf
+                <VirtualHost *:80>
+                    DocumentRoot /srv/www/wordpress
+                    <Directory /srv/www/wordpress>
+                        Options FollowSymLinks
+                        AllowOverride Limit Options FileInfo
+                        DirectoryIndex index.php
+                        Require all granted
+                    </Directory>
+                    <Directory /srv/www/wordpress/wp-content>
+                        Options FollowSymLinks
+                        Require all granted
+                    </Directory>
+                </VirtualHost>
+                EOF
+
+                sudo a2ensite wordpress
+                sudo a2enmod rewrite
+                sudo a2dissite 000-default
+                sudo service apache2 reload
+              - EFSDNS:
+                  Fn::Sub:
+                    - "${EFSServer}.efs.${AWS::Region}.amazonaws.com"
+                    - EFSServer: !Ref FinalDemoElasticFileSystem
+                dbendpoint: !GetAtt MyDB.Endpoint.Address
+                lbdns: !GetAtt ApplicationLoadBalancer.DNSName
+
+      LaunchTemplateName: FinalDemoLaunchTemplate
+
+#### Instance Profile ####
+
+  SecretsManagerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: SecretsManagerInstanceProfile
+      Roles:
+        - !Ref SecretsManagerRole
+
+# IAM role
+
+  SecretsManagerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Description: Secrets Manager Role
+      # RoleName: SecretsManagerRole
+      Tags:
+        - Key: Name
+          Value: Secrets Manager Role
+
+# IAM Role Policy
+
+  SecretsManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Secrets Manager Policy
+      ManagedPolicyName: SecretsManagerPolicy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'secretsmanager:GetResourcePolicy'
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:DescribeSecret'
+              - 'secretsmanager:ListSecretVersionIds'
+              - 'secretsmanager:ListSecrets'
+            Resource: "*"
+      Roles:
+        - !Ref SecretsManagerRole
+
+#### Auto Scaling Group ####
+
+  FinalDemoAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: FinalDemoAutoScalingGroup
+      DesiredCapacity: '2'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref FinalDemoLaunchTemplate
+        Version: !GetAtt FinalDemoLaunchTemplate.LatestVersionNumber
+      MaxSize: '3'
+      MinSize: '2'
+      NewInstancesProtectedFromScaleIn: 'True'
+      Tags:
+        - Key: Name
+          Value: FinalDemoAutoScalingGroup
+          PropagateAtLaunch: "true"
+      TargetGroupARNs:
+        - !Ref FinalDemoTargetGroup
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
